@@ -5,35 +5,38 @@
 2. Jalankan program dengan menggunakan pemanggilan command ```./cuda```. Dengan NP adalah jumlah proses dan N adalah jumlah elemen array.
 
 #### Pembagian Tugas
-13516014 - Renjira Naufal
-1. Membuat fungsi countSort, main pada radixsort.cu
+13516014 - Renjira Naufhal Dhiaegana
+1. Membuat fungsi countort, counting, main pada radixsort.cu
 2. Membuat makefile
-3. Membuat hostfile
+3. Membuat README.md
 
 13516131 - Intan Nurjanah
-1. Membuat Sequential_RadixSort.c
+1. Membuat countsort.cu
 2. Membuat fungsi getMax, radixsort pada radixsort.cu
-3. Menyusun README.md
 
 #### Laporan Pengerjaan
 ##### Solusi Paralel
-Pertama, hitung banyaknya task. Task dapat dihitung dari jumlah data per processor (s = n/p). Setelah menghitung jumlah task, lakukan MPI_Scatter terhadap data array ary ke masing masing task. Setelah itu lakukan radix sort terhadap local_array yang sudah di scatter sebelumnya. Setelah melakukan radix sort, lakukan mpi gather dari local_array yangsudah di sort masing-masing ke array utama ary.
+Pertama, lakukan pencarian nilai maksimum dari array. Lalu lakukan count_sort terhadap tiap exp. Pada countsort, lakukan pembagian data dan lakukan count terhadap tiap elemen pada array yang sudah dibagi. Lakukan syncthread terhadap semua thread yang sudah dibagi, dan kembalikan array count ke host. Lalu lakukan sort dengan inclusive_scan(dengan library thrust).
 
-##### Jumlah Thread yang Digunakan
-Pada algoritma MPI_Radixsort digunakan jumlah thread sebanyak lima karena saat menggunakan thread ini membutuhkan waktu yang lebih singkat dibandingkan jika jumlah threadnya lebih sedikit dari lima maupun lebih banyak dari lima
+##### Analisis solusi yang anda berikan. Apakah mungkin terdapat solusi yang memberikan kinerja lebih baik?
+Solusi yang kami berikan hanya baik untuk elemen array yang banyak karena overhead yang terjadi karena pembuatan thread. Baiknya, lakukan radix sort serial apabila jumlah elemen sedikit.
 
-##### Pengukuran Kinerja Tiap Kasus
-Berikut adalah perhitungan waktu dalam microsecond
+
+##### Jelaskan pemetaan thread ke komputasi, dan jumlah thread per block yang digunakan.
+
+
+##### Pengukuran kinerja untuk tiap kasus uji (jumlah N pada array) 
 1. N = 5000
-   Waktu rata-rata program paralel = 900, program serial = 1600
+   Waktu rata-rata program paralel = , program serial = 
 2. N = 50000
-   Waktu rata-rata program paralel = 1100, program serial = 2200
+   Waktu rata-rata program paralel = , program serial = 
 3. N = 100000
-   Waktu rata-rata program paralel = 1400, program serial = 2100
+   Waktu rata-rata program paralel = , program serial = 
 4. N = 200000
-   Waktu rata-rata program paralel = 1600, program serial = 2300
+   Waktu rata-rata program paralel = , program serial = 
 5. N = 400000
-   Waktu rata-rata program paralel = 5000, program serial = 8400
+   Waktu rata-rata program paralel = , program serial = 
 
-##### Analisis Solusi
-Pada algoritma paralel yang telah dibuat, rata-rata waktu yang dibutuhkan justru lebih singkat 50% dibandingkan dengan program serial. Tetapi tidak menutup kemungkinan akan ada program yang lebih efisien dari program ini karena speedup nya masih dibawah 80%.
+
+##### Analisis perbandingan kinerja serial dan paralel. 
+Waktu untuk pengerjaan parallel hanya baik untuk array yang besar. Sedangkan akan lama apabila array kecil karena jumlah thread yang banyak menyebabkan overhead
