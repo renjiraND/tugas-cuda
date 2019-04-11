@@ -110,6 +110,9 @@ __host__ void radix_sort_serial(int *arr, int n) {
 
 
 int main(int argc, char *argv[]) {
+
+        FILE * finput, fresult;
+
         cudaEvent_t start, stop;
         float elapsedTime;
         if (argc < 2){
@@ -134,6 +137,10 @@ int main(int argc, char *argv[]) {
         printf("Serial radix sort ran in  %f\n", elapsedTime);
 
         rng(arr, n);
+        finput = fopen("test/input","w");
+        for(int i=0;i<WSIZE-1;i++)
+            fprintf(finput,"%d\n",hdata[i]);
+        fclose(finput);
 
         cudaEventCreate(&start);
         cudaEventRecord(start,0);
@@ -146,4 +153,9 @@ int main(int argc, char *argv[]) {
 
         cudaEventElapsedTime(&elapsedTime, start,stop);
         printf("Paralel radix sort ran in  %f\n", elapsedTime);
+
+        fresult = fopen("test/result","w");
+        for(int i=0;i<WSIZE-1;i++)
+            fprintf(fresult,"%d\n",hdata[i]);
+        fclose(fresult);
 }
