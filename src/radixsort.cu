@@ -118,7 +118,7 @@ int main(int argc, char *argv[]) {
     cudaEvent_t start, finish;
     float elapsedTime;
     if (argc < 2) {
-        printf("usage: ./main N\n");
+        printf("usage: ./radix_sort N\n");
         exit(1);
     }
     int n = atoi(argv[1]);
