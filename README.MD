@@ -13,6 +13,7 @@
 13516131 - Intan Nurjanah
 1. Membuat countsort.cu
 2. Membuat fungsi getMax, radixsort pada radixsort.cu
+3. Bugfixing
 
 #### Laporan Pengerjaan
 ##### Solusi Paralel
@@ -21,21 +22,17 @@ Pertama, lakukan pencarian nilai maksimum dari array. Lalu lakukan count_sort te
 ##### Analisis solusi yang anda berikan. Apakah mungkin terdapat solusi yang memberikan kinerja lebih baik?
 Solusi yang kami berikan hanya baik untuk elemen array yang banyak karena overhead yang terjadi karena pembuatan thread. Baiknya, lakukan radix sort serial apabila jumlah elemen sedikit.
 
-
-##### Jelaskan pemetaan thread ke komputasi, dan jumlah thread per block yang digunakan.
-
-
 ##### Pengukuran kinerja untuk tiap kasus uji (jumlah N pada array) 
 1. N = 5000
-   Waktu rata-rata program paralel = , program serial = 
+   Waktu rata-rata program paralel = 0.001632, program serial = 104.660255
 2. N = 50000
-   Waktu rata-rata program paralel = , program serial = 
+   Waktu rata-rata program paralel = 17.139648, program serial = 53.781727
 3. N = 100000
-   Waktu rata-rata program paralel = , program serial = 
+   Waktu rata-rata program paralel = 31.216896, program serial = 56.234081
 4. N = 200000
-   Waktu rata-rata program paralel = , program serial = 
+   Waktu rata-rata program paralel = 68.454399, program serial = 103.973282
 5. N = 400000
-   Waktu rata-rata program paralel = , program serial = 
+   Waktu rata-rata program paralel = 129.312347, program serial = 154.401505
 
 
 ##### Analisis perbandingan kinerja serial dan paralel. 
