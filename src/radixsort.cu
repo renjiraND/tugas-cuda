@@ -1,175 +1,154 @@
 #include <stdio.h>
-#include <stdlib.h>
-#include <iostream>
-#include <chrono>
+#include <math.h>
+#include <thrust/scan.h>
 
-using namespace std;
-using namespace std::chrono;
-
-#define WSIZE 32
-#define LOOPS 100
-#define UPPER_BIT 10
-#define LOWER_BIT 0
-
-
-__device__ unsigned int ddata[WSIZE];
-__device__ int ddata_s[WSIZE];
-
-__device__ int getMax(int arr[], int n)
-{
-	int mx = arr[0];
-	for (int i = 1; i < n; i++)
-		if (arr[i] > mx)
-			mx = arr[i];
-	return mx;
-}
-
-__device__ void countSort(int arr[], int n, int exp)
-{
-	int output[n]; // Output array
-	int i, count[10] = { 0 };
-
-	// simpan banyaknya kemunculan digit 
-	for (i = 0; i < n; i++) {
-		count[(arr[i] / exp) % 10]++;
-	}
-
-	for (i = 1; i < 10; i++) {
-		count[i] += count[i - 1];
-	}
-
-	// output array: terurut berdasarkan current digit
-	for (i = n - 1; i >= 0; i--) {
-		output[count[(arr[i] / exp) % 10] - 1] = arr[i];
-		count[(arr[i] / exp) % 10]--;
-	}
-
-	// Copy output[] ke arr[]
-	for (i = 0; i < n; i++)
-		arr[i] = output[i];
-}
-
-__device__ void radixsort(int arr[], int n) {
-	// berdasarkan digit
-	int m = getMax(arr, n);
-
-	// exp adalah 10^i
-	// i = current digit
-	for (int exp = 1; m / exp > 0; exp *= 10) {
-		countSort(arr, n, exp);
-	}
-}
-
-__global__ void serialRadix() {
-	radixsort(ddata_s, WSIZE);
-}
-
-__global__ void parallelRadix() {
-	// shared memory
-	__shared__ volatile unsigned int sdata[WSIZE * 2];
-
-	// load dari global ke shared
-	sdata[threadIdx.x] = ddata[threadIdx.x];
-
-	unsigned int bitmask = 1 << LOWER_BIT;
-	unsigned int offset = 0;
-	unsigned int thrmask = 0xFFFFFFFFU << threadIdx.x;
-	unsigned int pos;
-
-	
-	for (int i = LOWER_BIT; i <= UPPER_BIT; i++)
-	{
-		unsigned int mydata = sdata[((WSIZE - 1) - threadIdx.x) + offset];
-		unsigned int mybit = mydata&bitmask;
-
-		unsigned int satu = __ballot(mybit);
-		unsigned int nol = ~satu;
-		offset ^= WSIZE;
-
-		if (!mybit) {
-			pos = __popc(nol & thrmask);
-		} else  {
-			pos = __popc(nol) + __popc(satu & thrmask);
-		}
-
-		sdata[pos - 1 + offset] = mydata;
-		bitmask <<= 1;
-	}
-	ddata[threadIdx.x] = sdata[threadIdx.x + offset];
-}
-
-void rng(unsigned* arr, int n) {
+// fill random number to array
+void rng(int* arr, int n) {
     int seed = 13516014; // NIM Renjira
     srand(seed);
-    for(long i = 0; i < n; i++) {
-        arr[i] = (int)rand();
+    for (long i = 0; i < n; i++) {
+        arr[i] = (int) rand();
     }
 }
 
-int main() {
-	/* Parallel */
-	int arr_size = (WSIZE * LOOPS);
-	unsigned int hdata[arr_size];
-	float totalTime = 0;
+// get max number in array
+__host__ int getMax(int *arr, int n) {
+    int max = arr[0];
+    for (int i = 1; i < n; i++) {
+        if (arr[i] > max) {
+            max = arr[i];
+        }
+    }
+    return mx;
+}
 
-	// isi array dengan random element
-	rng(hdata, arr_size);
-	for (int j = 0; j < LOOPS; j++) {
-		srand(time(NULL));
+__global__ void counting(int *arr, int *count, int n, int exp) {
+    int i = blockDim.x * blockIdx.x + threadIdx.x;
+    if (i < n) {
+        int digit = (arr[i] / exp) % 10;
+        atomicAdd(&count[digit], 1);
+    }
+    __syncthreads();
+}
 
-		// Copy data host ke device
-		cudaMemcpyToSymbol(ddata, hdata, WSIZE * sizeof(unsigned int));
+__host__ void parallelCountSort(int *arr, int n, int exp) {
+    int output[n];
 
-		// waktu awal
-		high_resolution_clock::time_point t1 = high_resolution_clock::now();
-		parallelRadix <<< 1, WSIZE >>>();
-		// synchronous kernel
-		cudaDeviceSynchronize();
-		// waktu akhir
-		high_resolution_clock::time_point t2 = high_resolution_clock::now();
-		// durasi
-		auto duration = duration_cast<milliseconds>(t2 - t1).count();
-		totalTime += (float)duration * 1000.00;
-
-		// Copy data from device to host
-		cudaMemcpyFromSymbol(hdata, ddata, WSIZE * sizeof(unsigned int));
-	}
-
-	printf("\nParallel :\n");
-	printf("Array size = %d\n", arr_size);
-	printf("Time elapsed = %fmicroseconds\n", totalTime);
+    int *d_arr;
+    cudaMalloc(&d_arr, n * sizeof (int));
+    cudaMemcpy(d_arr, arr, n * sizeof (int), cudaMemcpyHostToDevice);
+    int count[10] = {0};
+    int *d_count;
+    cudaMalloc(&d_count, 10 * sizeof (int));
+    cudaMemcpy(d_count, count, 10 * sizeof (int), cudaMemcpyHostToDevice);
 
 
-	/* Serial */
-	unsigned int hdata_s[arr_size];
-	totalTime = 0;
+    int grid_size = (n + 1023) / 1024;
+    int thread_size = 1024;
 
-	// isi array dengan random element
-	rng(hdata, arr_size);
-	for (int j = 0; j < LOOPS; j++) {
-		srand(time(NULL));
-		
-		// Copy data host ke device
-		cudaMemcpyToSymbol(ddata_s, hdata_s, WSIZE * sizeof(unsigned int));
+    counting << <grid_size, thread_size>>>(d_arr, d_count, n, exp);
 
-		// waktu awal
-		high_resolution_clock::time_point t1 = high_resolution_clock::now();
-		serialRadix <<< 1, 1 >>>();
-		// synchronous kernel
-		cudaDeviceSynchronize();
-		// waktu akhir
-		high_resolution_clock::time_point t2 = high_resolution_clock::now();
-		// durasi
-		auto duration = duration_cast<milliseconds>(t2 - t1).count();
-		totalTime += (float)duration * 1000.00;
+    cudaMemcpy(count, d_count, 10 * sizeof (int), cudaMemcpyDeviceToHost);
 
-		// Copy data from device to host
-		cudaMemcpyFromSymbol(hdata_s, ddata_s, WSIZE * sizeof(unsigned int));
-	}
+    thrust::inclusive_scan(count, count + 10, count);
 
-	printf("\nSerial :\n");
-	printf("Array size = %d\n", arr_size);
-	printf("Time elapsed = %fmicroseconds\n\n", totalTime);
 
-	return 0;
+    for (int i = n - 1; i >= 0; i--) {
+        int digit = (arr[i] / exp) % 10;
+        output[count[digit] - 1] = arr[i];
+        count[digit]--;
+    }
+
+    for (int i = 0; i < n; i++) {
+        arr[i] = output[i];
+    }
+}
+
+// parallel radix sort
+__host__ void parallelRadixSort(int *arr, int n) {
+    int m = getMax(arr, n);
+
+    for (int exp = 1; m / exp > 0; exp *= 10) {
+        parallelCountSort(arr, n, exp);
+    }
+}
+
+// print array
+__host__ void print(int *arr, int n) {
+    printf("=======Array element:\n");
+    for (int i = 0; i < n; i++) {
+        printf("%d\n", arr[i]);
+    }
+    printf("=====================\n");
+}
+
+__host__ void serialCountSort(int *arr, int n, int exp) {
+    int output[n];
+    int count[10] = {0};
+
+    for (int i = 0; i < n; i++) {
+        int d = (arr[i] / exp) % 10;
+        count[d]++;
+    }
+
+    for (int i = 1; i < 10; i++) {
+        count[i] += count[i - 1];
+    }
+
+    for (int i = n - 1; i >= 0; i--) {
+        int d = (arr[i] / exp) % 10;
+        output[ count[d] - 1 ] = arr[i];
+        count[d]--;
+    }
+
+    for (int i = 0; i < n; i++) {
+        arr[i] = output[i];
+    }
+}
+
+__host__ void serialRadixSort(int *arr, int n) {
+    int m = getMax(arr, n);
+
+    for (int exp = 1; m / exp > 0; exp *= 10) {
+        serialCountSort(arr, n, exp);
+    }
+}
+
+int main(int argc, char *argv[]) {
+    cudaEvent_t start, finish;
+    float elapsedTime;
+    if (argc < 2) {
+        printf("usage: ./main N\n");
+        exit(1);
+    }
+    int n = atoi(argv[1]);
+    int *arr = (int *) malloc(n * sizeof (int));
+    printf("Array size = %d\n", n);
+    rng(arr, n);
+
+    cudaEventCreate(&start);
+    cudaEventRecord(start, 0);
+
+    serialRadixSort(arr, n);
+
+    cudaEventCreate(&finish);
+    cudaEventRecord(finish, 0);
+    cudaEventSynchronize(finish);
+
+    cudaEventElapsedTime(&elapsedTime, start, finish);
+    printf("Elapsed time for serial radix sort:  %f\n", elapsedTime);
+
+    rng(arr, n);
+
+    cudaEventCreate(&start);
+    cudaEventRecord(start, 0);
+
+    parallelRadixSort(arr, n);
+
+    cudaEventCreate(&finish);
+    cudaEventRecord(finish, 0);
+    cudaEventSynchronize(finish);
+
+    cudaEventElapsedTime(&elapsedTime, start, finish);
+    printf("Elapsed time for parallel radix sort:  %f\n", elapsedTime);
 }
