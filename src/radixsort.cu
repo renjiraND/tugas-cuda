@@ -19,7 +19,7 @@ __host__ int getMax(int *arr, int n) {
             max = arr[i];
         }
     }
-    return mx;
+    return max;
 }
 
 __global__ void counting(int *arr, int *count, int n, int exp) {
